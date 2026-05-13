@@ -6,6 +6,8 @@ Consumer-side AI that helps end users contest the institutional loops they're tr
 >
 > **Companion piece to [Sentinel](https://github.com/sinhaankur/Human-in-the-Loop).** Sentinel is oversight *of* AI by experts; Recourse is oversight of *institutions* by AI, on behalf of the person they're squeezing.
 
+**[Live demo →](https://sinhaankur.github.io/Recourse/)** &nbsp;·&nbsp; **[How it works →](docs/HOW_IT_WORKS.md)** &nbsp;·&nbsp; **[Parity-law context →](docs/PARITY_LAW.md)** &nbsp;·&nbsp; **[Architecture →](docs/ARCHITECTURE.md)**
+
 ---
 
 ## The thesis
