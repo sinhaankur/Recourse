@@ -92,9 +92,33 @@ export interface DraftResponse {
   anchors: StatuteAnchor[];
 }
 
+/** Everything the EOBPaper renderer needs that varies per document type. */
+export interface PaperMeta {
+  /** Top-of-page line over the title — e.g. "Northshore Health · Member Services" */
+  organizationLine: string;
+  /** Identifier shown beneath the title — e.g. "Claim # N-4218-A" */
+  referenceId: string;
+  /** Top-right corner labels — e.g. "Not a bill" / "For your records" */
+  cornerLabel?: string;
+  cornerSubtitle?: string;
+  /** Subject-block key/value pairs */
+  subjectRows: Array<[string, string]>;
+  /** Headers for the charge table */
+  columnLabels: { description: string; col1: string; col2: string; col3: string; col4: string };
+  /** Footer notice block */
+  footerHeadline: string;
+  footerBody: string;
+  /** Whether to show the "Allowed" middle column or merge it */
+  hideAllowedColumn?: boolean;
+}
+
 export interface Case {
   id: string;
   loopKind: LoopKind;
+  /** Short label for the case switcher — e.g. "Mental-health denial" */
+  displayName: string;
+  /** Genre label for the document — drives the EOB header */
+  documentTitle: string;     // e.g. "Explanation of Benefits" | "Hospital Bill"
   insurer: string;
   patientLabel: string;      // e.g. "M.R. (you)" — never the real name in demo
   provider: string;
@@ -104,6 +128,7 @@ export interface Case {
   /** Best-case recovery if the appeal wins */
   recoveryEstimate: number;  // cents
   receivedAt: string;        // ISO — when the EOB arrived
+  paperMeta: PaperMeta;
   billLines: BillLine[];
   extracted: ExtractedEntity[];
   claims: CaseClaim[];

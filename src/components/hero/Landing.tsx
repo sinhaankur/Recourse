@@ -1,6 +1,7 @@
 import { ScanLine, ShieldOff, Clock, BookOpen } from "lucide-react";
 import { useRecourse } from "@/state/recourse";
 import { usd } from "@/lib/format";
+import { cn } from "@/lib/cn";
 
 /**
  * Landing — the pitch + the "open the case" CTA.
@@ -10,7 +11,7 @@ import { usd } from "@/lib/format";
  * the headline names the loop, not the technology.
  */
 export function Landing() {
-  const { activeCase, setStage } = useRecourse();
+  const { activeCase, cases, setActiveCase, setStage } = useRecourse();
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -82,11 +83,42 @@ export function Landing() {
 
           {/* The case card */}
           <div className="rounded-lg border border-border bg-surface-1 p-5">
-            <div className="text-[10px] uppercase tracking-wider text-fg-subtle font-semibold">
-              The case you'll watch Recourse open
+            <div className="flex items-center justify-between">
+              <div className="text-[10px] uppercase tracking-wider text-fg-subtle font-semibold">
+                The case you'll watch Recourse open
+              </div>
+              {cases.length > 1 && (
+                <div className="text-[10px] text-fg-subtle">
+                  {cases.length} cases available
+                </div>
+              )}
             </div>
-            <div className="mt-2 text-sm font-medium text-fg">
-              Out-of-network mental health denial
+
+            {/* Case picker — appears only when there's more than one */}
+            {cases.length > 1 && (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {cases.map((c) => {
+                  const active = c.id === activeCase.id;
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => setActiveCase(c.id)}
+                      className={cn(
+                        "rounded-md px-2 py-1 text-[11px] border transition-colors",
+                        active
+                          ? "border-ember bg-ember/15 text-ember font-medium"
+                          : "border-border bg-surface-2 text-fg-muted hover:bg-surface-3"
+                      )}
+                    >
+                      {c.displayName}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="mt-3 text-sm font-medium text-fg">
+              {activeCase.displayName}
             </div>
             <div className="mt-1 text-[12px] text-fg-muted leading-relaxed">
               {activeCase.summary}
@@ -97,7 +129,11 @@ export function Landing() {
                 value={usd(activeCase.amountInDispute)}
               />
               <Stat
-                label="Recovery if appeal wins"
+                label={
+                  activeCase.loopKind === "surprise_bill"
+                    ? "Liability wiped if you win"
+                    : "Recovery if appeal wins"
+                }
                 value={usd(activeCase.recoveryEstimate)}
                 tone="ember"
               />

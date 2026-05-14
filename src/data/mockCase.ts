@@ -18,6 +18,8 @@ import type { Case } from "@/types";
 export const CANONICAL_CASE: Case = {
   id: "case-mhp-001",
   loopKind: "parity_violation",
+  displayName: "Mental-health denial",
+  documentTitle: "Explanation of Benefits",
   insurer: "Northshore Health (Plan #N-4218)",
   patientLabel: "M.R. (you)",
   provider: "Dr. Sara Levin, LCSW — out-of-network",
@@ -26,6 +28,29 @@ export const CANONICAL_CASE: Case = {
   amountInDispute: 387_600, // $3,876 — 14 sessions at $277/session billed
   recoveryEstimate: 248_500, // $2,485 — plan's stated allowed amount × 14
   receivedAt: "2026-05-08",
+
+  paperMeta: {
+    organizationLine: "Northshore Health · Member Services",
+    referenceId: "Claim # N-4218-A",
+    cornerLabel: "Not a bill",
+    cornerSubtitle: "For your records.",
+    subjectRows: [
+      ["Member", "M.R. ····7421"],
+      ["Plan", "Self-funded ERISA group plan"],
+      ["Provider", "Dr. Sara Levin, LCSW (OON)"],
+      ["Service period", "Feb 4 – Apr 29, 2026 · 14 visits"],
+    ],
+    columnLabels: {
+      description: "Service · CPT",
+      col1: "Billed",
+      col2: "Allowed",
+      col3: "Plan paid",
+      col4: "You owe",
+    },
+    footerHeadline: "Appeal rights.",
+    footerBody:
+      "You may request an internal appeal of this determination within 180 days. Submit appeals to Northshore Health, Appeals Department, PO Box ····, by certified mail or via the member portal. Internal appeal must be filed by Aug 6, 2026. You may also request the criteria used to make this determination.",
+  },
 
   billLines: [
     {
