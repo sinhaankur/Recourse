@@ -1,4 +1,4 @@
-import { ScanLine, ShieldOff, Clock, BookOpen } from "lucide-react";
+import { ScanLine, ShieldOff, Clock, BookOpen, UploadCloud } from "lucide-react";
 import { useRecourse } from "@/state/recourse";
 import { usd } from "@/lib/format";
 import { cn } from "@/lib/cn";
@@ -11,7 +11,7 @@ import { cn } from "@/lib/cn";
  * the headline names the loop, not the technology.
  */
 export function Landing() {
-  const { activeCase, cases, setActiveCase, setStage } = useRecourse();
+  const { activeCase, cases, setActiveCase, setStage, setMode } = useRecourse();
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -74,10 +74,18 @@ export function Landing() {
                 <ScanLine className="h-4 w-4" />
                 Run the example case
               </button>
-              <div className="text-[11px] text-fg-subtle max-w-xs leading-snug self-center">
-                Mental-health denial. Real statutes. The numbers and the
-                people are fictional.
-              </div>
+              <button
+                onClick={() => setMode("upload")}
+                className="inline-flex items-center gap-2 rounded-md border border-ember/40 bg-ember/5 px-4 py-2.5 text-sm font-medium text-ember hover:bg-ember/10 transition-colors"
+              >
+                <UploadCloud className="h-4 w-4" />
+                Upload your own (needs Ollama)
+              </button>
+            </div>
+            <div className="mt-3 text-[11px] text-fg-subtle max-w-xl leading-snug">
+              The canonical case is mocked end-to-end — instant, deterministic,
+              demoable. The upload path runs a real vision model against your
+              own document via Ollama on your machine. Nothing leaves your laptop.
             </div>
           </div>
 

@@ -8,6 +8,11 @@ Consumer-side AI that helps end users contest the institutional loops they're tr
 
 **[Live demo →](https://sinhaankur.github.io/Recourse/)** &nbsp;·&nbsp; **[How it works →](docs/HOW_IT_WORKS.md)** &nbsp;·&nbsp; **[Parity-law context →](docs/PARITY_LAW.md)** &nbsp;·&nbsp; **[Architecture →](docs/ARCHITECTURE.md)**
 
+The demo ships in two modes:
+
+- **Canonical mode** — two hand-authored cases (mental-health denial, surprise ER bill). Mocked end-to-end. Instant. The portfolio path.
+- **Upload mode** — drag in your own PDF or image, run extraction against a local **Ollama** vision model. Real vision call, real structured output, no cloud, no API keys, no data leaving your machine. [Setup below](#using-the-upload-mode-with-ollama).
+
 ---
 
 ## The thesis
@@ -98,12 +103,71 @@ A GitHub Pages deploy workflow lives alongside Sentinel's — this repo will get
 
 ---
 
+## Using the upload mode with Ollama
+
+The "Upload your own" button on the landing switches into a mode where Recourse calls a **local Ollama** daemon to read a document you upload. The vision call runs entirely on your machine. Nothing leaves your laptop.
+
+### One-time setup
+
+```bash
+# 1. Install Ollama
+brew install ollama
+# or download the .dmg from https://ollama.com
+
+# 2. Pull a vision-capable model (pick one)
+ollama pull llava              # 7B, ~5 GB, fast
+ollama pull llama3.2-vision    # 11B, ~8 GB, better quality
+ollama pull bakllava           # 7B, ~5 GB, decent middle ground
+
+# 3. Start Ollama with browser-CORS allowed (this is the step most
+#    people miss — without it, the browser can't talk to localhost:11434)
+OLLAMA_ORIGINS="*" ollama serve
+```
+
+Leave that terminal running. Verify with:
+
+```bash
+curl http://localhost:11434/api/tags
+```
+
+### Using it
+
+1. Open the demo (live or local).
+2. Click **"Upload your own (needs Ollama)"** on the landing.
+3. The status banner at the top auto-checks your local daemon:
+   - **Green: "Ollama ready"** — pick a vision model from the dropdown.
+   - **Yellow: "no vision-capable model installed"** — `ollama pull llava` and click Recheck.
+   - **Red: "Ollama isn't reachable"** — the exact `OLLAMA_ORIGINS` command is in the banner with a copy button.
+4. Drop a PDF, PNG, JPG, or WebP onto the dropzone (or click to browse).
+5. Recourse renders the first page (for PDFs) and shows it on the left.
+6. Click **Extract**. The model streams its response; you watch the tokens come in.
+7. When the stream ends, the structured fields populate on the right — document kind, insurer, claim ID, deadlines, denial code, etc. — each with a confidence label (`settled` / `you verify` / `ask a lawyer`).
+
+### What the upload mode does *not* do
+
+- **No claim generation.** A 7B–11B local model isn't reliable enough to cite real statute correctly. The upload mode stops after entity extraction; claim generation and statute anchoring remain in the canonical cases.
+- **No bounding-box anchoring on uploaded docs.** Vision models don't return reliable pixel coordinates for arbitrary documents. The bbox feature is canonical-mode-only.
+- **No multi-page PDFs.** First page only for now.
+
+These are deliberate scope cuts. The honest read: this mode makes the "AI reads the letter" promise *literal* end-to-end, with a clear demarcation between what the local model produces and what a real product would need a more rigorous pipeline for.
+
+### Why Ollama specifically
+
+- **No API keys, no costs, fully private** — case data never leaves the user's machine. For consumer-legal AI specifically, that's a meaningful posture, not just a tagline.
+- **Forkable.** Anyone reading this README can clone, install Ollama, and have the whole pipeline running locally in ~3 minutes. The portfolio piece doubles as a runnable artifact.
+- **Forces honest UX.** Local-only means the demo can't paper over model failures with a fallback to a more expensive API. The failure modes (parse error, no vision model, daemon down) all get first-class UI.
+
+---
+
 ## Stack
 
 - **Vite** + **React 19** + **TypeScript** (strict)
 - **Tailwind v4** with `@theme` design tokens (OKLCH palette, dark default + light mode) — shifted accent from Sentinel's `info` blue to a warmer `ember` so it reads as a sibling, not a clone
-- **Radix UI** primitives for dialogs / popovers (held in reserve — the current demo is keyboard-and-hover only)
+- **Radix UI** primitives for dialogs / popovers
 - **Lucide** icons + **Fraunces** for display type
+- **pdfjs-dist** for in-browser PDF rendering to a canvas (upload mode)
+- **Zod** for validating model output against a strict extraction schema
+- **Ollama** (local daemon, optional) for the upload-mode vision calls
 
 ---
 
