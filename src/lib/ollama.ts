@@ -143,6 +143,176 @@ Always try to extract these fields when present:
 
 If a field is not on the document, omit it from the array. Do not invent values.`;
 
+// ---------------------------------------------------------------------------
+// Policy decoder — different prompt + schema, same Ollama pipeline.
+// ---------------------------------------------------------------------------
+
+/**
+ * One annotation about a passage in a policy document. Lives on whichever
+ * page it was found on, so the UI can render it in document order.
+ *
+ * Kinds:
+ *   covered    — a benefit clearly available
+ *   excluded   — a benefit clearly NOT available
+ *   limit      — a numeric or session/visit cap
+ *   vague      — language with high financial impact that is undefined or
+ *                  open to insurer interpretation (e.g. "medically necessary,"
+ *                  "experimental," "usual and customary")
+ *   silent     — something a reasonable person would expect to be addressed
+ *                  but is not in this section (silence usually means the
+ *                  insurer reserves the right to deny later)
+ *   procedure  — a procedural requirement (prior auth, step therapy,
+ *                  referral, etc.) that the user must follow to be covered
+ */
+export const PolicyAnnotationSchema = z.object({
+  kind: z.enum(["covered", "excluded", "limit", "vague", "silent", "procedure"]),
+  topic: z.string().describe('e.g. "Mental health visits" or "Out-of-network coverage"'),
+  excerpt: z.string().describe("The policy's actual language (or '[not addressed]' for silent)"),
+  impact: z.enum(["low", "medium", "high"]),
+  note: z.string().describe("Plain-language explanation of why this matters to the user"),
+});
+
+export type PolicyAnnotation = z.infer<typeof PolicyAnnotationSchema>;
+
+export const PolicyPageResponseSchema = z.object({
+  annotations: z.array(PolicyAnnotationSchema),
+});
+
+export type PolicyPageResponse = z.infer<typeof PolicyPageResponseSchema>;
+
+/**
+ * Prompt for per-page policy analysis. Asks the model to surface the four
+ * failure modes (vague, silent, exclusion, limit) — not just what's covered.
+ * The "watch out for" lists are explicit because vision LLMs left to their
+ * own devices tend to summarize neutrally and miss the adversarial patterns
+ * that matter to the user.
+ */
+const POLICY_DECODER_PROMPT = `You are reading one page of a health insurance plan document (Summary Plan Description, Evidence of Coverage, or Certificate of Insurance).
+
+Your job is NOT to summarize. Your job is to surface what a user reading this page would miss — the adversarial patterns insurers use to limit coverage.
+
+For each meaningful passage on this page, return one annotation with one of these kinds:
+
+- "covered"   — A specific benefit is clearly available. Note what it covers.
+- "excluded"  — A specific benefit is clearly NOT covered. Note what's excluded.
+- "limit"     — A numeric cap (visits per year, dollar maximum, days of coverage). Note the cap.
+- "vague"     — Language with high financial impact that is undefined or open to insurer interpretation. WATCH especially for: "medically necessary," "experimental," "investigational," "usual and customary," "reasonable and customary," "appropriate level of care," "covered when authorized." For each, explain how the insurer might use the vagueness against the user.
+- "silent"    — Something a reasonable person would expect to be addressed in this section but isn't. Silence usually means the insurer reserves the right to deny later. Example: a section on mental health that doesn't say whether telehealth is covered.
+- "procedure" — A procedural requirement the user must follow to get coverage (prior authorization, step therapy, referral, network restrictions, timing windows). Failure to follow these is the #1 cause of "valid" denials.
+
+For impact:
+- "low"    — affects routine, low-cost care
+- "medium" — affects regular care that adds up ($100s-$1000s)
+- "high"   — affects expensive care or could cause total denial of a major claim
+
+Return STRICT JSON, no prose around it:
+
+{
+  "annotations": [
+    {
+      "kind": "<covered | excluded | limit | vague | silent | procedure>",
+      "topic": "<what the passage is about>",
+      "excerpt": "<the policy's exact language, or '[not addressed]' for silent>",
+      "impact": "<low | medium | high>",
+      "note": "<plain English: why this matters to the user, what to do, what to watch for>"
+    }
+  ]
+}
+
+If this page contains no annotatable content (table of contents, blank, regulatory boilerplate), return {"annotations": []}.`;
+
+export interface DecodePolicyPageOptions {
+  baseUrl?: string;
+  model: string;
+  image: string;
+  signal?: AbortSignal;
+  onToken?: (chunk: string, total: string) => void;
+}
+
+export interface DecodePolicyPageResult {
+  raw: string;
+  annotations?: PolicyAnnotation[];
+  parseError?: string;
+  durationMs: number;
+}
+
+/**
+ * Per-page policy analysis call. Same underlying mechanism as
+ * generateExtraction (Ollama /api/generate, streaming, JSON parse with
+ * prose-stripping), but a different prompt and different response schema.
+ */
+export async function decodePolicyPage({
+  baseUrl = OLLAMA_BASE_URL,
+  model,
+  image,
+  signal,
+  onToken,
+}: DecodePolicyPageOptions): Promise<DecodePolicyPageResult> {
+  const started = performance.now();
+  const res = await fetch(`${baseUrl}/api/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    signal,
+    body: JSON.stringify({
+      model,
+      prompt: POLICY_DECODER_PROMPT,
+      images: [stripDataUrl(image)],
+      stream: true,
+      options: { temperature: 0.1, num_predict: 1536 },
+    }),
+  });
+  if (!res.ok || !res.body) throw new Error(`Ollama returned ${res.status}`);
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let raw = "";
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let nl;
+    while ((nl = buffer.indexOf("\n")) >= 0) {
+      const line = buffer.slice(0, nl).trim();
+      buffer = buffer.slice(nl + 1);
+      if (!line) continue;
+      try {
+        const chunk = JSON.parse(line) as { response?: string };
+        if (chunk.response) {
+          raw += chunk.response;
+          onToken?.(chunk.response, raw);
+        }
+      } catch {
+        /* partial line at stream end */
+      }
+    }
+  }
+  const durationMs = Math.round(performance.now() - started);
+
+  const firstBrace = raw.indexOf("{");
+  const lastBrace = raw.lastIndexOf("}");
+  if (firstBrace < 0 || lastBrace <= firstBrace) {
+    return { raw, parseError: "No JSON object in model output", durationMs };
+  }
+  try {
+    const parsed = PolicyPageResponseSchema.parse(
+      JSON.parse(raw.slice(firstBrace, lastBrace + 1))
+    );
+    return { raw, annotations: parsed.annotations, durationMs };
+  } catch (err) {
+    return {
+      raw,
+      parseError:
+        err instanceof Error ? err.message : "Could not parse model response",
+      durationMs,
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Denial-letter extraction (the original use case)
+// ---------------------------------------------------------------------------
+
 export interface GenerateOptions {
   baseUrl?: string;
   model: string;

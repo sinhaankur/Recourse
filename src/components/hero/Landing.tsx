@@ -1,4 +1,4 @@
-import { ScanLine, ShieldOff, Clock, BookOpen, UploadCloud } from "lucide-react";
+import { ScanLine, ShieldOff, Clock, BookOpen, UploadCloud, FileScan } from "lucide-react";
 import { useRecourse } from "@/state/recourse";
 import { usd } from "@/lib/format";
 import { cn } from "@/lib/cn";
@@ -11,7 +11,12 @@ import { cn } from "@/lib/cn";
  * the headline names the loop, not the technology.
  */
 export function Landing() {
-  const { activeCase, cases, setActiveCase, setStage, setMode } = useRecourse();
+  const { activeCase, cases, setActiveCase, setStage, setMode, setUploadTask } = useRecourse();
+
+  const openUpload = (task: "denial" | "decoder") => {
+    setUploadTask(task);
+    setMode("upload");
+  };
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -75,17 +80,25 @@ export function Landing() {
                 Run the example case
               </button>
               <button
-                onClick={() => setMode("upload")}
+                onClick={() => openUpload("denial")}
+                className="inline-flex items-center gap-2 rounded-md border border-ember/40 bg-ember/5 px-4 py-2.5 text-sm font-medium text-ember hover:bg-ember/10 transition-colors"
+              >
+                <FileScan className="h-4 w-4" />
+                Read your denial letter
+              </button>
+              <button
+                onClick={() => openUpload("decoder")}
                 className="inline-flex items-center gap-2 rounded-md border border-ember/40 bg-ember/5 px-4 py-2.5 text-sm font-medium text-ember hover:bg-ember/10 transition-colors"
               >
                 <UploadCloud className="h-4 w-4" />
-                Upload your own (needs Ollama)
+                Decode your policy
               </button>
             </div>
             <div className="mt-3 text-[11px] text-fg-subtle max-w-xl leading-snug">
               The canonical case is mocked end-to-end — instant, deterministic,
-              demoable. The upload path runs a real vision model against your
-              own document via Ollama on your machine. Nothing leaves your laptop.
+              demoable. The two upload paths run real vision models against your
+              own documents via Ollama on your machine. Nothing leaves your laptop.
+              Decoding a multi-page policy takes a few minutes.
             </div>
           </div>
 

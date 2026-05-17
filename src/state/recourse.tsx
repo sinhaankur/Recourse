@@ -10,14 +10,17 @@ import {
 } from "react";
 import type { Case } from "@/types";
 import {
+  decodePolicyPage,
   generateExtraction,
   probeOllama,
   type ExtractionResponse,
   type OllamaModel,
   type OllamaStatus,
+  type PolicyAnnotation,
 } from "@/lib/ollama";
 import {
   renderImageToDataUrl,
+  renderPdfAllPages,
   renderPdfPageToImage,
   type RenderedPdfPage,
 } from "@/lib/pdf";
@@ -26,6 +29,9 @@ export type FlowStage = "landing" | "scanning" | "extracted" | "strategy" | "dra
 
 /** Top-level mode — which "shape" of demo the user is in. */
 export type DemoMode = "canonical" | "upload";
+
+/** Which Ollama-backed task the user is running in upload mode. */
+export type UploadTask = "denial" | "decoder";
 
 /** Per-extraction lifecycle. Independent of the canonical-case FlowStage. */
 export type ExtractionStatus =
@@ -49,6 +55,36 @@ export interface UploadedDoc {
   extractionError?: string;
   /** Wall-clock duration of the last extraction (ms) */
   durationMs?: number;
+}
+
+/** Decoder lifecycle is multi-stage because a policy is multi-page. */
+export type DecoderStatus =
+  | "idle"
+  | "rendering"      // turning all pages into images
+  | "ready"          // images ready, awaiting "Analyze"
+  | "analyzing"      // page-by-page Ollama in flight
+  | "done"
+  | "aborted"
+  | "failed";
+
+export interface DecoderPageState {
+  page: RenderedPdfPage;
+  status: "queued" | "running" | "complete" | "failed" | "skipped";
+  annotations: PolicyAnnotation[];
+  error?: string;
+  durationMs?: number;
+}
+
+export interface DecoderState {
+  file: File;
+  status: DecoderStatus;
+  pages: DecoderPageState[];
+  /** 1-indexed page currently running, or null when no page running */
+  currentPage: number | null;
+  /** Total pages successfully analyzed */
+  pagesComplete: number;
+  /** Global error if rendering failed before any page ran */
+  error?: string;
 }
 
 interface RecourseState {
@@ -86,6 +122,17 @@ interface RecourseState {
   cancelExtraction: () => void;
   /** Clear the uploaded doc, reset upload flow to dropzone */
   clearUpload: () => void;
+
+  // Which upload-mode task the user is running
+  uploadTask: UploadTask;
+  setUploadTask: (t: UploadTask) => void;
+
+  // Policy decoder state (independent lifecycle from single-doc denial flow)
+  decoder: DecoderState | null;
+  loadPolicyFile: (f: File) => Promise<void>;
+  runDecoder: () => Promise<void>;
+  cancelDecoder: () => void;
+  clearDecoder: () => void;
 }
 
 const Ctx = createContext<RecourseState | null>(null);
@@ -114,6 +161,15 @@ export function RecourseProvider({
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [uploadedDoc, setUploadedDoc] = useState<UploadedDoc | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  // Upload-mode task + decoder state
+  const [uploadTask, setUploadTask] = useState<UploadTask>("denial");
+  const [decoder, setDecoder] = useState<DecoderState | null>(null);
+  const decoderAbortRef = useRef<AbortController | null>(null);
+  // Mutable "should we keep analyzing pages" flag. We set this to false
+  // on cancel so the page loop exits cleanly between pages without
+  // depending on a setState round-trip.
+  const decoderRunningRef = useRef<boolean>(false);
 
   const activeCase = useMemo(
     () => cases.find((c) => c.id === activeCaseId) ?? cases[0],
@@ -273,6 +329,183 @@ export function RecourseProvider({
     setUploadedDoc(null);
   }, []);
 
+  // ---- Policy decoder methods ----------------------------------------
+
+  const loadPolicyFile = useCallback(async (f: File) => {
+    setDecoder({
+      file: f,
+      status: "rendering",
+      pages: [],
+      currentPage: null,
+      pagesComplete: 0,
+    });
+    try {
+      const collected: DecoderPageState[] = [];
+      // Stream pages into state as they render so the user sees the
+      // thumbnails populating instead of waiting for all 25 pages.
+      for await (const page of renderPdfAllPages(f)) {
+        collected.push({ page, status: "queued", annotations: [] });
+        setDecoder((d) =>
+          d ? { ...d, pages: [...collected] } : d
+        );
+      }
+      setDecoder((d) =>
+        d ? { ...d, status: "ready" } : d
+      );
+    } catch (err) {
+      setDecoder((d) =>
+        d
+          ? {
+              ...d,
+              status: "failed",
+              error:
+                err instanceof Error
+                  ? err.message
+                  : "Could not render the policy document",
+            }
+          : d
+      );
+    }
+  }, []);
+
+  const runDecoder = useCallback(async () => {
+    // Snapshot guard rails — model + decoder must both be ready
+    if (!selectedModel) {
+      setDecoder((d) =>
+        d
+          ? { ...d, status: "failed", error: "No vision model selected" }
+          : d
+      );
+      return;
+    }
+    decoderRunningRef.current = true;
+    setDecoder((d) =>
+      d
+        ? {
+            ...d,
+            status: "analyzing",
+            pages: d.pages.map((p) =>
+              p.status === "complete" || p.status === "failed"
+                ? p
+                : { ...p, status: "queued", annotations: [] }
+            ),
+            pagesComplete: d.pages.filter((p) => p.status === "complete").length,
+          }
+        : d
+    );
+
+    // Pull a fresh snapshot of pages to iterate. Each iteration awaits
+    // its own Ollama call; cancellation flips decoderRunningRef.current.
+    let snapshot: DecoderPageState[] = [];
+    setDecoder((d) => {
+      snapshot = d?.pages ?? [];
+      return d;
+    });
+    // setState above is synchronous in capturing the ref — but to be
+    // safe, fall through with a microtask yield so React commits.
+    await Promise.resolve();
+
+    for (let i = 0; i < snapshot.length; i++) {
+      if (!decoderRunningRef.current) break;
+      const ps = snapshot[i];
+      if (ps.status === "complete") continue;
+
+      decoderAbortRef.current = new AbortController();
+      setDecoder((d) =>
+        d
+          ? {
+              ...d,
+              currentPage: ps.page.pageNumber,
+              pages: d.pages.map((p) =>
+                p.page.pageNumber === ps.page.pageNumber
+                  ? { ...p, status: "running" }
+                  : p
+              ),
+            }
+          : d
+      );
+
+      try {
+        const result = await decodePolicyPage({
+          model: selectedModel,
+          image: ps.page.dataUrl,
+          signal: decoderAbortRef.current.signal,
+        });
+        setDecoder((d) =>
+          d
+            ? {
+                ...d,
+                pagesComplete: d.pagesComplete + (result.annotations ? 1 : 0),
+                pages: d.pages.map((p) =>
+                  p.page.pageNumber === ps.page.pageNumber
+                    ? {
+                        ...p,
+                        status: result.annotations ? "complete" : "failed",
+                        annotations: result.annotations ?? [],
+                        error: result.parseError,
+                        durationMs: result.durationMs,
+                      }
+                    : p
+                ),
+              }
+            : d
+        );
+      } catch (err) {
+        const aborted = decoderAbortRef.current?.signal.aborted;
+        setDecoder((d) =>
+          d
+            ? {
+                ...d,
+                pages: d.pages.map((p) =>
+                  p.page.pageNumber === ps.page.pageNumber
+                    ? {
+                        ...p,
+                        status: aborted ? "skipped" : "failed",
+                        error: aborted
+                          ? "Cancelled"
+                          : err instanceof Error
+                          ? err.message
+                          : "Page analysis failed",
+                      }
+                    : p
+                ),
+              }
+            : d
+        );
+        if (aborted) break;
+      }
+    }
+
+    decoderRunningRef.current = false;
+    setDecoder((d) =>
+      d
+        ? {
+            ...d,
+            currentPage: null,
+            status: d.pages.every(
+              (p) => p.status === "complete" || p.status === "skipped"
+            )
+              ? "done"
+              : decoderRunningRef.current
+              ? "analyzing"
+              : "done",
+          }
+        : d
+    );
+  }, [selectedModel]);
+
+  const cancelDecoder = useCallback(() => {
+    decoderRunningRef.current = false;
+    decoderAbortRef.current?.abort();
+    setDecoder((d) => (d ? { ...d, status: "aborted" } : d));
+  }, []);
+
+  const clearDecoder = useCallback(() => {
+    decoderRunningRef.current = false;
+    decoderAbortRef.current?.abort();
+    setDecoder(null);
+  }, []);
+
   const value = useMemo<RecourseState>(
     () => ({
       cases,
@@ -296,6 +529,13 @@ export function RecourseProvider({
       runExtraction,
       cancelExtraction,
       clearUpload,
+      uploadTask,
+      setUploadTask,
+      decoder,
+      loadPolicyFile,
+      runDecoder,
+      cancelDecoder,
+      clearDecoder,
     }),
     [
       cases,
@@ -315,6 +555,12 @@ export function RecourseProvider({
       runExtraction,
       cancelExtraction,
       clearUpload,
+      uploadTask,
+      decoder,
+      loadPolicyFile,
+      runDecoder,
+      cancelDecoder,
+      clearDecoder,
     ]
   );
 

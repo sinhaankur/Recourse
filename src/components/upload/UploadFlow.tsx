@@ -1,23 +1,48 @@
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, FileScan, BookOpen } from "lucide-react";
 import { useRecourse } from "@/state/recourse";
 import { OllamaSetupBanner } from "./OllamaSetupBanner";
 import { UploadDropzone } from "./UploadDropzone";
 import { PdfPreview } from "./PdfPreview";
 import { ExtractionResults } from "./ExtractionResults";
+import { MultipagePdfPreview } from "./MultipagePdfPreview";
+import { PolicyDecoderResults } from "./PolicyDecoderResults";
+import { cn } from "@/lib/cn";
 
 /**
- * Top-level screen for the upload mode. Three-row layout:
+ * Top-level screen for upload mode. The task toggle at the top determines
+ * which sub-flow the user is in:
  *
- *   1. Header with "back to landing" + mode label
- *   2. Ollama setup banner (gates everything below)
- *   3. Either the dropzone (no doc yet) OR a two-pane preview+results
+ *   Denial letter → single-page extraction. PdfPreview + ExtractionResults.
+ *   Decoder       → multi-page policy analysis. MultipagePdfPreview +
+ *                     PolicyDecoderResults.
+ *
+ * The same Ollama setup banner gates both — they share the daemon + model
+ * picker.
  */
 export function UploadFlow() {
-  const { setMode, clearUpload, uploadedDoc } = useRecourse();
+  const {
+    setMode,
+    clearUpload,
+    clearDecoder,
+    uploadedDoc,
+    decoder,
+    uploadTask,
+    setUploadTask,
+  } = useRecourse();
 
   const onBack = () => {
     clearUpload();
+    clearDecoder();
     setMode("canonical");
+  };
+
+  const switchTask = (t: "denial" | "decoder") => {
+    if (t === uploadTask) return;
+    // Switching tasks clears the other side's loaded state so the UI
+    // doesn't get confused. The user can re-upload anytime.
+    if (t === "decoder") clearUpload();
+    else clearDecoder();
+    setUploadTask(t);
   };
 
   return (
@@ -38,26 +63,97 @@ export function UploadFlow() {
       </header>
 
       <main className="flex-1 mx-auto max-w-6xl w-full px-6 py-6 space-y-5">
+        {/* Task selector */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <TaskOption
+            active={uploadTask === "denial"}
+            onClick={() => switchTask("denial")}
+            Icon={FileScan}
+            title="Read a denial letter / bill"
+            body="Single page. Pulls deadline, claim ID, denial code, amount, plan type."
+          />
+          <TaskOption
+            active={uploadTask === "decoder"}
+            onClick={() => switchTask("decoder")}
+            Icon={BookOpen}
+            title="Decode your insurance policy"
+            body="Multi-page SPD or EOC. Surfaces covered / excluded / vague / silent passages — the loopholes the insurer will use against you."
+          />
+        </div>
+
         <OllamaSetupBanner />
 
-        {!uploadedDoc ? (
+        {/* Conditional flows by task */}
+        {uploadTask === "denial" ? (
+          !uploadedDoc ? (
+            <UploadDropzone />
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] gap-6 items-start">
+              <div className="lg:sticky lg:top-20">
+                <PdfPreview />
+              </div>
+              <div className="min-w-0">
+                <ExtractionResults />
+              </div>
+            </div>
+          )
+        ) : !decoder ? (
           <UploadDropzone />
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] gap-6 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] gap-6 items-start">
             <div className="lg:sticky lg:top-20">
-              <PdfPreview />
+              <MultipagePdfPreview />
             </div>
             <div className="min-w-0">
-              <ExtractionResults />
+              <PolicyDecoderResults />
             </div>
           </div>
         )}
       </main>
 
       <footer className="border-t border-border px-6 py-4 text-center text-[11px] text-fg-subtle">
-        The vision call runs against your local Ollama. No cloud, no API key,
+        Vision call runs against your local Ollama. No cloud, no API key,
         no data leaving your machine.
       </footer>
     </div>
+  );
+}
+
+function TaskOption({
+  active,
+  onClick,
+  Icon,
+  title,
+  body,
+}: {
+  active: boolean;
+  onClick: () => void;
+  Icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  body: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "text-left rounded-md border p-3 transition-colors",
+        active
+          ? "border-ember bg-ember/10 ring-1 ring-ember/40"
+          : "border-border bg-surface-1 hover:bg-surface-2"
+      )}
+    >
+      <div className="flex items-center gap-2">
+        <Icon className={cn("h-4 w-4", active ? "text-ember" : "text-fg-muted")} />
+        <div
+          className={cn(
+            "text-[13px] font-semibold",
+            active ? "text-ember" : "text-fg"
+          )}
+        >
+          {title}
+        </div>
+      </div>
+      <p className="mt-1 text-[11px] text-fg-muted leading-relaxed">{body}</p>
+    </button>
   );
 }

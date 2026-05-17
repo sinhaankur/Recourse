@@ -74,6 +74,52 @@ export async function renderPdfPageToImage(
 }
 
 /**
+ * Multi-page render — for the policy decoder mode where a single SPD/EOC
+ * can be 50–150 pages. Renders each page sequentially via a generator so
+ * callers can stream the pages (and show progress) instead of waiting
+ * for all of them.
+ *
+ * Caps total pages at `maxPages` to keep the demo from melting a laptop
+ * on a 300-page master agreement. Default is 25 — enough for most plan
+ * summaries' first-pass coverage info.
+ */
+export async function* renderPdfAllPages(
+  file: File,
+  {
+    maxDimension = 1200,
+    maxPages = 25,
+  }: { maxDimension?: number; maxPages?: number } = {}
+): AsyncGenerator<RenderedPdfPage, void, void> {
+  const buffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+  const total = pdf.numPages;
+  const pagesToRender = Math.min(total, maxPages);
+
+  for (let pageNumber = 1; pageNumber <= pagesToRender; pageNumber++) {
+    const page = await pdf.getPage(pageNumber);
+    const baseViewport = page.getViewport({ scale: 1 });
+    const naturalMax = Math.max(baseViewport.width, baseViewport.height);
+    const scale = maxDimension / naturalMax;
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(viewport.width);
+    canvas.height = Math.round(viewport.height);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Could not get 2d canvas context");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    await page.render({ canvasContext: ctx, viewport, canvas }).promise;
+    yield {
+      dataUrl: canvas.toDataURL("image/png"),
+      width: canvas.width,
+      height: canvas.height,
+      pageNumber,
+      pageCount: total,
+    };
+  }
+}
+
+/**
  * Convenience wrapper: render an Image element (typically loaded from an
  * uploaded image file) directly to a PNG data URL, sized down to fit the
  * vision model's effective resolution. Used when the user drops a JPEG/PNG

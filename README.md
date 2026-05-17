@@ -11,7 +11,10 @@ Consumer-side AI that helps end users contest the institutional loops they're tr
 The demo ships in two modes:
 
 - **Canonical mode** — two hand-authored cases (mental-health denial, surprise ER bill). Mocked end-to-end. Instant. The portfolio path.
-- **Upload mode** — drag in your own PDF or image, run extraction against a local **Ollama** vision model. Real vision call, real structured output, no cloud, no API keys, no data leaving your machine. [Setup below](#using-the-upload-mode-with-ollama).
+- **Upload mode** — two real tasks against a local **Ollama** vision model:
+  - *Read a denial letter* — single page in, structured fields out.
+  - *Decode your insurance policy* — multi-page SPD in, annotated map out (covered / excluded / **vague (loopholes)** / **silent (gaps)** / procedural requirements).
+  Real vision call, no cloud, no API keys, no data leaving your machine. [Setup below](#using-the-upload-mode-with-ollama).
 
 ---
 
@@ -130,26 +133,31 @@ Leave that terminal running. Verify with:
 curl http://localhost:11434/api/tags
 ```
 
-### Using it
+### Two upload tasks
 
-1. Open the demo (live or local).
-2. Click **"Upload your own (needs Ollama)"** on the landing.
-3. The status banner at the top auto-checks your local daemon:
-   - **Green: "Ollama ready"** — pick a vision model from the dropdown.
-   - **Yellow: "no vision-capable model installed"** — `ollama pull llava` and click Recheck.
-   - **Red: "Ollama isn't reachable"** — the exact `OLLAMA_ORIGINS` command is in the banner with a copy button.
-4. Drop a PDF, PNG, JPG, or WebP onto the dropzone (or click to browse).
-5. Recourse renders the first page (for PDFs) and shows it on the left.
-6. Click **Extract**. The model streams its response; you watch the tokens come in.
-7. When the stream ends, the structured fields populate on the right — document kind, insurer, claim ID, deadlines, denial code, etc. — each with a confidence label (`settled` / `you verify` / `ask a lawyer`).
+Once Ollama is reachable, the upload screen offers two tasks against the same daemon:
 
-### What the upload mode does *not* do
+**1. Read a denial letter / bill** (single-page).
+- Drop an EOB, denial letter, or hospital bill (PDF, PNG, JPG, WebP).
+- Renders page 1 to a canvas, runs one vision call, returns structured fields: insurer, claim ID, deadlines, denial code, plan type, amount, network status.
+- ~10–15 seconds per document on M1/M2.
 
-- **No claim generation.** A 7B–11B local model isn't reliable enough to cite real statute correctly. The upload mode stops after entity extraction; claim generation and statute anchoring remain in the canonical cases.
-- **No bounding-box anchoring on uploaded docs.** Vision models don't return reliable pixel coordinates for arbitrary documents. The bbox feature is canonical-mode-only.
-- **No multi-page PDFs.** First page only for now.
+**2. Decode your insurance policy** (multi-page).
+- Drop your Summary Plan Description (SPD), Evidence of Coverage (EOC), or Certificate of Insurance.
+- Renders up to 25 pages as a vertical thumbnail stack on the left; each page goes through the vision model with a prompt that surfaces **what's covered, what's excluded, what's deliberately vague, what's silent (gaps), and what procedural steps are required.**
+- Annotations stream into the right panel as each page finishes, filterable by kind.
+- ~5–15 minutes for a 25-page policy on M1/M2. Cancel any time — partial results are kept.
 
-These are deliberate scope cuts. The honest read: this mode makes the "AI reads the letter" promise *literal* end-to-end, with a clear demarcation between what the local model produces and what a real product would need a more rigorous pipeline for.
+### Why these two tasks together
+
+Reading a denial letter is the **reactive** moment — the insurer already said no, you're fighting an existing decision. Decoding the policy is the **proactive** moment — you're learning what loopholes the insurer can use against you *before* they're used. The asymmetry the product targets is that the insurer's claims adjusters open your policy and find the exclusion to deny you under; you don't even know that exclusion exists. The decoder closes that gap on your side.
+
+### What the upload modes do *not* do
+
+- **No claim or appeal generation.** A 7B–11B local model isn't reliable enough to cite real statute correctly. Both upload modes stop at extraction or annotation; the canonical cases retain hand-authored playbooks for the harder reasoning.
+- **No bounding-box anchoring on uploaded docs.** Vision models don't return reliable pixel coordinates for arbitrary documents. The bbox bidirectional anchor is canonical-mode-only.
+- **No state-mandate cross-reference yet.** The decoder flags vague language and silent gaps, but doesn't yet check those against state-mandate floors (which often override the policy). That's the next layer.
+- **Decoder caps at 25 pages.** Most plan summaries fit; for 100+ page master agreements, the first 25 pages typically cover the load-bearing benefit structure.
 
 ### Why Ollama specifically
 

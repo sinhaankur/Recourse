@@ -6,13 +6,13 @@ import { cn } from "@/lib/cn";
 const ACCEPTED = ".pdf,.png,.jpg,.jpeg,.webp";
 
 /**
- * The drop zone. Accepts PDF or image files; renders the first page (or
- * the image itself) and hands it back to the provider. Disabled when
- * Ollama isn't ready so the user can't get stuck staring at a "now what"
- * screen.
+ * The drop zone. Accepts PDF or image files; dispatches to the right
+ * loader based on the active upload task (denial extracts first page only;
+ * decoder renders all pages of a multi-page PDF). Disabled when Ollama
+ * isn't ready so the user can't get stuck staring at a "now what" screen.
  */
 export function UploadDropzone() {
-  const { loadFile, ollamaStatus } = useRecourse();
+  const { loadFile, loadPolicyFile, uploadTask, ollamaStatus } = useRecourse();
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const disabled = ollamaStatus !== "ready";
@@ -21,10 +21,13 @@ export function UploadDropzone() {
     (files: FileList | File[]) => {
       const arr = Array.from(files);
       if (arr.length === 0) return;
-      loadFile(arr[0]);
+      if (uploadTask === "decoder") loadPolicyFile(arr[0]);
+      else loadFile(arr[0]);
     },
-    [loadFile]
+    [loadFile, loadPolicyFile, uploadTask]
   );
+
+  const isDecoder = uploadTask === "decoder";
 
   return (
     <button
@@ -53,19 +56,22 @@ export function UploadDropzone() {
       )}
     >
       <UploadCloud
-        className={cn(
-          "h-8 w-8",
-          dragOver ? "text-ember" : "text-fg-subtle"
-        )}
+        className={cn("h-8 w-8", dragOver ? "text-ember" : "text-fg-subtle")}
       />
       <div className="text-center">
         <div className="text-sm font-medium text-fg">
-          {disabled ? "Start Ollama above to enable upload" : "Drop a PDF or image"}
+          {disabled
+            ? "Start Ollama above to enable upload"
+            : isDecoder
+            ? "Drop your policy PDF"
+            : "Drop a denial letter / EOB / bill"}
         </div>
         <div className="mt-1 text-[11px] text-fg-muted">
           {disabled
             ? "Once Ollama is reachable, this zone activates."
-            : "Or click to browse. PDF, PNG, JPG, WebP. First page only for PDFs."}
+            : isDecoder
+            ? "Or click to browse. Multi-page PDFs supported. First 25 pages analyzed."
+            : "Or click to browse. PDF, PNG, JPG, WebP. First page only."}
         </div>
       </div>
       <div className="text-[10px] text-fg-subtle flex items-center gap-1.5">
