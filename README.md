@@ -6,15 +6,16 @@ Consumer-side AI that helps end users contest the institutional loops they're tr
 >
 > **Companion piece to [Sentinel](https://github.com/sinhaankur/Human-in-the-Loop).** Sentinel is oversight *of* AI by experts; Recourse is oversight of *institutions* by AI, on behalf of the person they're squeezing.
 
-**[Live demo →](https://sinhaankur.github.io/Recourse/)** &nbsp;·&nbsp; **[How it works →](docs/HOW_IT_WORKS.md)** &nbsp;·&nbsp; **[Parity-law context →](docs/PARITY_LAW.md)** &nbsp;·&nbsp; **[Architecture →](docs/ARCHITECTURE.md)**
+**[Live demo →](https://sinhaankur.github.io/Recourse/)** &nbsp;·&nbsp; **[MCP server →](mcp/README.md)** &nbsp;·&nbsp; **[How it works →](docs/HOW_IT_WORKS.md)** &nbsp;·&nbsp; **[Parity-law context →](docs/PARITY_LAW.md)** &nbsp;·&nbsp; **[Architecture →](docs/ARCHITECTURE.md)**
 
-The demo ships in two modes:
+Recourse ships in three forms:
 
-- **Canonical mode** — two hand-authored cases (mental-health denial, surprise ER bill). Mocked end-to-end. Instant. The portfolio path.
-- **Upload mode** — two real tasks against a local **Ollama** vision model:
+- **Web app, canonical mode** — two hand-authored cases (mental-health denial, surprise ER bill). Mocked end-to-end. Instant. The portfolio path.
+- **Web app, upload mode** — two real tasks against a local **Ollama** vision model:
   - *Read a denial letter* — single page in, structured fields out.
   - *Decode your insurance policy* — multi-page SPD in, annotated map out (covered / excluded / **vague (loopholes)** / **silent (gaps)** / procedural requirements).
   Real vision call, no cloud, no API keys, no data leaving your machine. [Setup below](#using-the-upload-mode-with-ollama).
+- **MCP server** ([`mcp/`](mcp/README.md)) — same Ollama-backed extractors as the web app, exposed as tools any [Model Context Protocol](https://modelcontextprotocol.io) client (Claude Desktop, Claude Code, future agents) can call. Means the policy decoder becomes part of whatever AI workflow you already use, instead of a separate destination.
 
 ---
 
