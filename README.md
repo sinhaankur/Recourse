@@ -6,7 +6,9 @@ Consumer-side AI that helps end users contest the institutional loops they're tr
 >
 > **Companion piece to [Sentinel](https://github.com/sinhaankur/Human-in-the-Loop).** Sentinel is oversight *of* AI by experts; Recourse is oversight of *institutions* by AI, on behalf of the person they're squeezing.
 
-**[Live demo →](https://sinhaankur.github.io/Recourse/)** &nbsp;·&nbsp; **[MCP server →](mcp/README.md)** &nbsp;·&nbsp; **[How it works →](docs/HOW_IT_WORKS.md)** &nbsp;·&nbsp; **[Parity-law context →](docs/PARITY_LAW.md)** &nbsp;·&nbsp; **[Architecture →](docs/ARCHITECTURE.md)**
+**[Live demo →](https://sinhaankur.github.io/Recourse/)** &nbsp;·&nbsp; **[MCP server →](mcp/README.md)** &nbsp;·&nbsp; **[How it works →](docs/HOW_IT_WORKS.md)** &nbsp;·&nbsp; **[Parity-law context →](docs/PARITY_LAW.md)** &nbsp;·&nbsp; **[Architecture →](docs/ARCHITECTURE.md)** &nbsp;·&nbsp; **[Legal & compliance →](docs/LEGAL.md)**
+
+> **Not legal advice.** Recourse identifies patterns and surfaces statutes; it does not interpret the law for your specific situation. For anything time-critical, high-dollar, or involving a court deadline, get a licensed attorney to review what the tool produced before you act. See [docs/LEGAL.md](docs/LEGAL.md) for the full posture (UPL, HIPAA, state variance, B2B compliance gaps).
 
 Recourse ships in three forms:
 

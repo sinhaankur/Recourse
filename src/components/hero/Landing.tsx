@@ -184,23 +184,40 @@ export function Landing() {
         </div>
       </section>
 
-      {/* Companion line */}
+      {/* Companion + legal line */}
       <footer className="flex-1 flex items-end">
-        <div className="mx-auto max-w-6xl px-6 py-8 text-[11px] text-fg-subtle leading-relaxed flex items-center gap-2">
-          <ShieldOff className="h-3 w-3" />
-          <span>
-            Companion piece to{" "}
+        <div className="mx-auto max-w-6xl px-6 py-8 space-y-2">
+          <div className="text-[11px] text-fg-subtle leading-relaxed flex items-start gap-2">
+            <ShieldOff className="h-3 w-3 mt-0.5 flex-none" />
+            <span>
+              Companion piece to{" "}
+              <a
+                href="https://sinhaankur.github.io/Human-in-the-Loop/"
+                target="_blank"
+                rel="noreferrer"
+                className="text-info hover:underline"
+              >
+                Sentinel
+              </a>{" "}
+              — that one is oversight of AI by experts; this one is oversight
+              of institutions by AI, on behalf of the person they're squeezing.
+            </span>
+          </div>
+          <div className="text-[10.5px] text-fg-subtle leading-relaxed pl-5">
+            <span className="font-semibold">Not legal advice.</span> Recourse
+            identifies patterns and surfaces statutes; it does not interpret
+            the law for your specific situation. For anything serious, get a
+            licensed attorney to review what the tool produced before you act.{" "}
             <a
-              href="https://sinhaankur.github.io/Human-in-the-Loop/"
+              href="https://github.com/sinhaankur/Recourse/blob/main/docs/LEGAL.md"
               target="_blank"
               rel="noreferrer"
               className="text-info hover:underline"
             >
-              Sentinel
-            </a>{" "}
-            — that one is oversight of AI by experts; this one is oversight
-            of institutions by AI, on behalf of the person they're squeezing.
-          </span>
+              Full legal & compliance posture
+            </a>
+            .
+          </div>
         </div>
       </footer>
     </div>

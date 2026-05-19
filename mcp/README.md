@@ -4,6 +4,8 @@ A [Model Context Protocol](https://modelcontextprotocol.io) server that exposes 
 
 Same Ollama backend as the [Recourse web app](https://sinhaankur.github.io/Recourse/) — local-only, no cloud, no API keys, no data leaving your machine.
 
+> **Not legal advice.** This server identifies patterns and surfaces statutes; the output is a starting point for a human reviewer, not a legal conclusion. The same caveats and compliance gaps that apply to the web app apply here — see the [Legal & Compliance posture](../docs/LEGAL.md) for the full accounting (UPL considerations, HIPAA posture, what's needed before B2B production use, state variance in insurance regulation).
+
 ---
 
 ## Why this exists

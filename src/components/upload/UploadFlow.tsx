@@ -111,9 +111,24 @@ export function UploadFlow() {
         )}
       </main>
 
-      <footer className="border-t border-border px-6 py-4 text-center text-[11px] text-fg-subtle">
-        Vision call runs against your local Ollama. No cloud, no API key,
-        no data leaving your machine.
+      <footer className="border-t border-border px-6 py-4 text-center text-[11px] text-fg-subtle space-y-1">
+        <div>
+          Vision call runs against your local Ollama. No cloud, no API key,
+          no data leaving your machine.
+        </div>
+        <div className="text-[10.5px]">
+          <span className="font-semibold">Not legal advice.</span> Output is
+          a starting point, not a legal conclusion.{" "}
+          <a
+            href="https://github.com/sinhaankur/Recourse/blob/main/docs/LEGAL.md"
+            target="_blank"
+            rel="noreferrer"
+            className="text-info hover:underline"
+          >
+            Legal & compliance posture
+          </a>
+          .
+        </div>
       </footer>
     </div>
   );

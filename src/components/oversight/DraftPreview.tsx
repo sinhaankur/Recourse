@@ -1,4 +1,4 @@
-import { Mail, Send } from "lucide-react";
+import { Mail, Send, AlertTriangle } from "lucide-react";
 import { useRecourse } from "@/state/recourse";
 
 /**
@@ -47,6 +47,29 @@ export function DraftPreview() {
           <Send className="h-3.5 w-3.5" />
           Send via certified mail
         </button>
+      </div>
+
+      {/* Pre-send disclaimer — the moment the user is about to act under
+       *  their own signature is the moment they need the limits stated. */}
+      <div className="rounded-md border border-verify/40 bg-verify/5 px-3 py-2.5 flex items-start gap-2.5">
+        <AlertTriangle className="h-3.5 w-3.5 text-verify mt-0.5 flex-none" />
+        <div className="text-[11px] text-fg-muted leading-relaxed">
+          <span className="font-semibold text-verify">This is not legal advice.</span>{" "}
+          Recourse drafted this letter from a template, anchored to real
+          statutes the model identified. You are sending it under your name.
+          For anything time-critical, high-dollar, or involving a court
+          deadline, have a licensed attorney in your state review the
+          letter before you send. The{" "}
+          <a
+            href="https://github.com/sinhaankur/Recourse/blob/main/docs/LEGAL.md"
+            target="_blank"
+            rel="noreferrer"
+            className="text-info hover:underline"
+          >
+            full legal posture
+          </a>{" "}
+          spells out what Recourse is and isn't.
+        </div>
       </div>
     </div>
   );
